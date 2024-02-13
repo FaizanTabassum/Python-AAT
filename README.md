@@ -32,6 +32,7 @@ I relied on several resources to develop this program:
 3. The program will determine your current location automatically.
 4. It will then search for charging stations within the specified range using the Overpass API.
 5. Finally, it will display the nearest charging station(s) along with relevant details and plot them on a map.
+   This is just for my college project, although the plotted points are real the map is quite unusable.
 
 
 ---
