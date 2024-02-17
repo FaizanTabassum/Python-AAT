@@ -4,10 +4,11 @@ Hi, This is Faizan, This program is to find the nearest charging station to your
 it uses simple libraries to get your current location and then uses the OSM maps API (overpassAPI) to find the nearest charging station.
 to use this program you will have to first install the libraries as follows
 write the following in your command prompt:
-pip install geocoder
+pip install folium
 pip install overpass
 pip install matplotlib
 pip install cartopy
+pip install qrcode[pil]
 
 
 These are the following references that I used to write this program:
@@ -30,10 +31,12 @@ this one is to calculate the distance between two points on a map, i dont really
 import requests
 import math
 # These libraries are for the map plotting
-import matplotlib.pyplot as plt
-import cartopy.crs as ccrs
+import folium
 # This library is for determining your current location
 import geocoder
+# for the qr code
+import qrcode
+import matplotlib.pyplot as plt
 
 
 range = int(input("Enter the range in km: "))
@@ -41,7 +44,7 @@ range = range * 1000
 
 
 def get_current_location():
-    g = geocoder.ip('me')
+    g = geocoder.ip('me')  # over here me means my laptop
     if g.ok:
         return g.latlng
     else:
@@ -56,15 +59,15 @@ else:
     print("Unable to determine current location.")
 
 # example coordinates, dont use this I just used this for testing
-# lat = 12.9716  # Latitude of Bengaluru
-# lon = 77.5946  # Longitude of Bengaluru
+# lat = 12.907523326627508  # Latitude of Bengaluru
+# lon = 77.5655353435218  # Longitude of Bengaluru
 lats = []
 lons = []
 
 # Define the overpass api url
 overpass_url = "http://overpass-api.de/api/interpreter"
 
-# Define the overpass query to find charging stations within 10 km radius
+# Define the overpass query to find charging stations within desired km radius
 overpass_query = f"""
 [out:json];
 node(around:{range},{lat},{lon})[amenity=charging_station];
@@ -121,32 +124,70 @@ if data["elements"]:
                     f"   It supports {element['tags'].get('socket', 'unknown')} socket type")
                 lats.append(element['lat'])
                 lons.append(element['lon'])
-                print(lats)
-                print(lons)
                 break
 else:
-    print("Sorry, no charging stations are found within 10 km radius of your current location")
+    print("Sorry, no charging stations are found within the radius of your current location")
 
 
-def plot_points_on_map(lats, lons, lat, lon):
-    plt.figure(figsize=(10, 8))
-    ax = plt.axes(projection=ccrs.PlateCarree())
-    ax.stock_img()
-    ax.coastlines()
+def plot_points(latitudes, longitudes, current_lat, current_lon):
+    map_osm = folium.Map(location=[current_lat, current_lon], zoom_start=12)
 
-    ax.plot(lons, lats, 'ro', markersize=8, transform=ccrs.PlateCarree())
-    ax.plot(lon, lat, 'bo', markersize=10, transform=ccrs.PlateCarree())
+    folium.Marker(location=[current_lat, current_lon],
+                  popup='Your Location', icon=folium.Icon(color='red')).add_to(map_osm)
 
-    # Calculate the extent of the plotted points
-    min_lon, max_lon = min(lons), max(lons)
-    min_lat, max_lat = min(lats), max(lats)
-    buffer = 1.0  # Buffer around the points
-    ax.set_extent([min_lon - buffer, max_lon + buffer, min_lat -
-                  buffer, max_lat + buffer], crs=ccrs.PlateCarree())
+    for lat, lon in zip(latitudes, longitudes):
+        folium.Marker(location=[lat, lon],
+                      popup='Charging Station').add_to(map_osm)
 
-    plt.title(
-        f'The charging stations found within {range} meters radius of your current location')
+    map_osm.save('map.html')
+
+    import webbrowser
+    webbrowser.open('map.html')
+
+
+plot_points(lats, lons, lat, lon)
+
+elementid = int(input("please enter which station you want to select: "))
+elementid = elementid - 1
+
+if len(distances) >= elementid:
+    # Get the tuple at index elementid (since indexing starts from 0)
+    selected_element = distances[elementid]
+
+    # Extract the latitude and longitude from the tuple
+    element_distance, element_station_id = selected_element
+    for element in data["elements"]:
+        if element["id"] == element_station_id:
+            element_lat = element["lat"]
+            element_lon = element["lon"]
+            print(f"The latitude of the 6th element is {element_lat}")
+            print(f"The longitude of the 6th element is {element_lon}")
+            break
+else:
+    print("There are fewer than 6 elements in the distances list.")
+
+
+def generate_and_display_google_maps_qr(latitude, longitude):
+    # Construct the Google Maps URL
+    google_maps_url = f'https://www.google.com/maps/search/?api=1&query={latitude},{longitude}'
+
+    # Generate the QR code
+    qr = qrcode.QRCode(version=1, box_size=10, border=5)
+    qr.add_data(google_maps_url)
+    qr.make(fit=True)
+
+    # Create an image from the QR code
+    qr_image = qr.make_image(fill_color="black", back_color="white")
+
+    # Display the QR code
+    plt.imshow(qr_image, cmap='gray')
+    plt.axis('off')
     plt.show()
 
+    # Save the QR code image
+    qr_image.save("google_maps_location_qr.png")
 
-plot_points_on_map(lats, lons, lat, lon)
+    print("QR code generated and displayed successfully!")
+
+
+generate_and_display_google_maps_qr(element_lat, element_lon)
